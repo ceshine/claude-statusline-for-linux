@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from .theme import pct_color
-from .models import RateLimitWindow, StatusData, Theme
+from .models import CurrentUsage, RateLimitWindow, StatusData, Theme
 from .constants import BAR_SEGMENTS, BOLD, ICON_COST, ICON_CTX, ICON_DIR, ICON_GIT, ICON_MODEL, ICON_VIM, ICON_WARN, RST
 
 
@@ -139,8 +139,46 @@ def vim_mode_str(vim_mode: str, theme: Theme, sep: str) -> str:
     return f"{sep}{color}{BOLD}{ICON_VIM} {vim_mode}{RST}"
 
 
+def format_token_count(count: int) -> str:
+    """Format a token count using compact suffixes for status line display.
+
+    Args:
+        count (int): Raw token count.
+
+    Returns:
+        str: Compact token count, such as "999", "1.2k", or "2.0M".
+    """
+    if count < 1000:
+        return str(count)
+    if count < 1_000_000:
+        return f"{count / 1000:.1f}k"
+    return f"{count / 1_000_000:.1f}M"
+
+
+def token_counts_str(current_usage: CurrentUsage, theme: Theme, sep: str) -> str:
+    """Build the current token usage segment.
+
+    Args:
+        current_usage (CurrentUsage): Token counts from the latest API call.
+        theme (Theme): The current terminal theme.
+        sep (str): Separator string placed before the segment.
+
+    Returns:
+        str: Formatted token segment.
+    """
+    if current_usage.total_tokens == 0:
+        return ""
+    return (
+        f"{sep}{theme.dim}tok{RST} "
+        f"{theme.cyan}i {format_token_count(current_usage.input_tokens)}{RST} "
+        f"{theme.green}o {format_token_count(current_usage.output_tokens)}{RST} "
+        f"{theme.yellow}cw {format_token_count(current_usage.cache_creation_input_tokens)}{RST} "
+        f"{theme.blue}cr {format_token_count(current_usage.cache_read_input_tokens)}{RST}"
+    )
+
+
 def build_line1(data: StatusData, theme: Theme, now: int, sep: str) -> str:
-    """Build the first status line (model, context bar, cost, usage).
+    """Build the first status line (model, context bar, cost, token counts).
 
     Args:
         data (StatusData): Parsed status payload.
@@ -157,9 +195,8 @@ def build_line1(data: StatusData, theme: Theme, now: int, sep: str) -> str:
     bar = "▰" * filled + "▱" * (BAR_SEGMENTS - filled)
 
     cost_str = f"${data.cost_usd:.2f}"
-    usage_5h = usage_segment_str("5h", data.five_hour, now, theme, sep)
-    usage_7d = usage_segment_str("7d", data.seven_day, now, theme, sep)
-    tail = f"{sep}{theme.dim}{ICON_COST} {cost_str}{RST}{usage_5h}{usage_7d}"
+    token_part = token_counts_str(data.current_usage, theme, sep)
+    tail = f"{sep}{theme.dim}{ICON_COST} {cost_str}{RST}{token_part}"
 
     if pct_int >= 90:
         return (
@@ -175,12 +212,13 @@ def build_line1(data: StatusData, theme: Theme, now: int, sep: str) -> str:
     )
 
 
-def build_line2(data: StatusData, theme: Theme, sep: str) -> str:
-    """Build the second status line (directory, git, vim mode).
+def build_line2(data: StatusData, theme: Theme, now: int, sep: str) -> str:
+    """Build the second status line (directory, git, usage, vim mode).
 
     Args:
         data (StatusData): Parsed status payload.
         theme (Theme): The current terminal theme.
+        now (int): Current Unix timestamp.
         sep (str): Separator string between segments.
 
     Returns:
@@ -188,5 +226,7 @@ def build_line2(data: StatusData, theme: Theme, sep: str) -> str:
     """
     dir_name = Path(data.cwd).name or data.cwd
     git_part = git_info_str(data.cwd, theme, sep)
+    usage_5h = usage_segment_str("5h", data.five_hour, now, theme, sep)
+    usage_7d = usage_segment_str("7d", data.seven_day, now, theme, sep)
     vim_part = vim_mode_str(data.vim_mode, theme, sep)
-    return f"{theme.blue}{ICON_DIR} {dir_name}{RST}{git_part}{vim_part}"
+    return f"{theme.blue}{ICON_DIR} {dir_name}{RST}{git_part}{usage_5h}{usage_7d}{vim_part}"

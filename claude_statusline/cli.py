@@ -1,7 +1,7 @@
 """Claude Code Status Line — Two-line layout with Nerd Font icons (MD range)
 
-Line 1: Model │ Context Bar (16 segs) │ Cost │ 5h usage │ 7d usage
-Line 2: Directory │ Git Branch & Status │ Vim
+Line 1: Model │ Context Bar (16 segs) │ Cost │ Tokens
+Line 2: Directory │ Git Branch & Status │ 5h usage │ 7d usage │ Vim
 """
 
 import json
@@ -29,5 +29,5 @@ def main() -> None:
     sep = f"{theme.dim} │ {RST}"
 
     line1 = build_line1(data, theme, now, sep)
-    line2 = build_line2(data, theme, sep)
+    line2 = build_line2(data, theme, now, sep)
     print(f"{line1}\n{line2}", end="")

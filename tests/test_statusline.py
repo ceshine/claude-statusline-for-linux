@@ -9,12 +9,14 @@ from claude_statusline.formatters import (
     build_line1,
     build_line2,
     format_countdown,
+    format_token_count,
     git_info_str,
     resets_at_to_epoch,
+    token_counts_str,
     usage_segment_str,
     vim_mode_str,
 )
-from claude_statusline.models import RateLimitWindow, StatusData
+from claude_statusline.models import CurrentUsage, RateLimitWindow, StatusData
 from claude_statusline.parser import parse_status_data
 from claude_statusline.theme import build_theme, detect_theme, pct_color
 
@@ -49,7 +51,15 @@ class TestParseStatusData:
         raw = {
             "model": {"display_name": "claude-opus-4"},
             "workspace": {"current_dir": "/home/user/project"},
-            "context_window": {"used_percentage": 42.5},
+            "context_window": {
+                "used_percentage": 42.5,
+                "current_usage": {
+                    "input_tokens": 1200,
+                    "output_tokens": 300,
+                    "cache_creation_input_tokens": 40,
+                    "cache_read_input_tokens": 500,
+                },
+            },
             "cost": {"total_cost_usd": 1.23},
             "vim": {"mode": "INSERT"},
             "rate_limits": {
@@ -62,6 +72,10 @@ class TestParseStatusData:
         assert data.model == "claude-opus-4"
         assert data.cwd == "/home/user/project"
         assert data.context_used_pct == 42.5
+        assert data.current_usage.input_tokens == 1200
+        assert data.current_usage.output_tokens == 300
+        assert data.current_usage.cache_creation_input_tokens == 40
+        assert data.current_usage.cache_read_input_tokens == 500
         assert data.cost_usd == 1.23
         assert data.vim_mode == "INSERT"
         assert data.five_hour.used_pct == 30
@@ -76,6 +90,12 @@ class TestParseStatusData:
         assert data.model == "?"
         assert data.cwd == "."
         assert data.context_used_pct == 0.0
+        assert data.current_usage == CurrentUsage(
+            input_tokens=0,
+            output_tokens=0,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
         assert data.cost_usd == 0.0
         assert data.vim_mode == ""
         assert data.five_hour.used_pct is None
@@ -90,6 +110,16 @@ class TestParseStatusData:
         """An empty current_dir string is treated as missing."""
         data = parse_status_data({"workspace": {"current_dir": ""}})
         assert data.cwd == "."
+
+    def test_null_current_usage_defaults_to_zero_counts(self):
+        """A null current_usage object falls back to zero token counts."""
+        data = parse_status_data({"context_window": {"current_usage": None}})
+        assert data.current_usage == CurrentUsage(
+            input_tokens=0,
+            output_tokens=0,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +294,38 @@ class TestUsageSegmentStr:
 
 
 # ---------------------------------------------------------------------------
+# format_token_count / token_counts_str
+# ---------------------------------------------------------------------------
+
+
+class TestTokenCounts:
+    """Tests for token count formatting."""
+
+    def test_format_token_count_for_small_values(self):
+        assert format_token_count(999) == "999"
+
+    def test_format_token_count_for_thousands(self):
+        assert format_token_count(1200) == "1.2k"
+
+    def test_format_token_count_for_millions(self):
+        assert format_token_count(2_000_000) == "2.0M"
+
+    def test_token_counts_str_contains_all_fields(self):
+        current_usage = CurrentUsage(
+            input_tokens=1200,
+            output_tokens=300,
+            cache_creation_input_tokens=40,
+            cache_read_input_tokens=500,
+        )
+        result = strip_ansi(token_counts_str(current_usage, DARK, SEP))
+        assert "tok" in result
+        assert "i 1.2k" in result
+        assert "o 300" in result
+        assert "cw 40" in result
+        assert "cr 500" in result
+
+
+# ---------------------------------------------------------------------------
 # git_info_str
 # ---------------------------------------------------------------------------
 
@@ -345,6 +407,12 @@ class TestBuildLine1:
             model=model,
             cwd="/tmp",
             context_used_pct=context_pct,
+            current_usage=CurrentUsage(
+                input_tokens=0,
+                output_tokens=0,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            ),
             cost_usd=cost,
             vim_mode="",
             five_hour=RateLimitWindow(used_pct=None, resets_at=None),
@@ -370,19 +438,28 @@ class TestBuildLine1:
         result = strip_ansi(build_line1(data, DARK, now=0, sep=SEP))
         assert "CTX" not in result
 
-    def test_usage_segments_appear_when_present(self):
+    def test_token_counts_appear_when_present(self):
         data = StatusData(
             model="m",
             cwd="/tmp",
             context_used_pct=10.0,
+            current_usage=CurrentUsage(
+                input_tokens=1200,
+                output_tokens=300,
+                cache_creation_input_tokens=40,
+                cache_read_input_tokens=500,
+            ),
             cost_usd=0.0,
             vim_mode="",
             five_hour=RateLimitWindow(used_pct=20, resets_at=9999999999),
             seven_day=RateLimitWindow(used_pct=5, resets_at=9999999999),
         )
         result = strip_ansi(build_line1(data, DARK, now=0, sep=SEP))
-        assert "5h" in result
-        assert "7d" in result
+        assert "tok" in result
+        assert "i 1.2k" in result
+        assert "o 300" in result
+        assert "cw 40" in result
+        assert "cr 500" in result
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +475,12 @@ class TestBuildLine2:
             model="m",
             cwd="/home/user/myproject",
             context_used_pct=0.0,
+            current_usage=CurrentUsage(
+                input_tokens=0,
+                output_tokens=0,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            ),
             cost_usd=0.0,
             vim_mode="",
             five_hour=RateLimitWindow(used_pct=None, resets_at=None),
@@ -405,7 +488,7 @@ class TestBuildLine2:
         )
         with patch("claude_statusline.formatters.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(128, "git")
-            result = strip_ansi(build_line2(data, DARK, SEP))
+            result = strip_ansi(build_line2(data, DARK, now=0, sep=SEP))
         assert "myproject" in result
 
     def test_includes_vim_mode_when_active(self):
@@ -413,6 +496,12 @@ class TestBuildLine2:
             model="m",
             cwd="/tmp",
             context_used_pct=0.0,
+            current_usage=CurrentUsage(
+                input_tokens=0,
+                output_tokens=0,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            ),
             cost_usd=0.0,
             vim_mode="NORMAL",
             five_hour=RateLimitWindow(used_pct=None, resets_at=None),
@@ -420,5 +509,28 @@ class TestBuildLine2:
         )
         with patch("claude_statusline.formatters.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(128, "git")
-            result = strip_ansi(build_line2(data, DARK, SEP))
+            result = strip_ansi(build_line2(data, DARK, now=0, sep=SEP))
         assert "NORMAL" in result
+
+    def test_includes_usage_windows(self):
+        data = StatusData(
+            model="m",
+            cwd="/tmp",
+            context_used_pct=0.0,
+            current_usage=CurrentUsage(
+                input_tokens=1200,
+                output_tokens=300,
+                cache_creation_input_tokens=40,
+                cache_read_input_tokens=500,
+            ),
+            cost_usd=0.0,
+            vim_mode="",
+            five_hour=RateLimitWindow(used_pct=20, resets_at=9999999999),
+            seven_day=RateLimitWindow(used_pct=5, resets_at=9999999999),
+        )
+        with patch("claude_statusline.formatters.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(128, "git")
+            result = strip_ansi(build_line2(data, DARK, now=0, sep=SEP))
+        assert "5h" in result
+        assert "7d" in result
+        assert "tok" not in result

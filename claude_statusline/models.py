@@ -4,6 +4,26 @@ from dataclasses import dataclass
 
 
 @dataclass
+class CurrentUsage:
+    """Token counts for the current Claude Code API call."""
+
+    input_tokens: int
+    output_tokens: int
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens used in the current API call."""
+        return self.input_tokens + self.output_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
+
+    @property
+    def context_tokens(self) -> int:
+        """Total context token used in the current API call"""
+        return self.input_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
+
+
+@dataclass
 class Theme:
     """ANSI color codes for a terminal theme."""
 
@@ -33,6 +53,7 @@ class StatusData:
     model: str
     cwd: str
     context_used_pct: float
+    current_usage: CurrentUsage
     cost_usd: float
     vim_mode: str
     five_hour: RateLimitWindow
