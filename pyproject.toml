@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-statusline-for-linux"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+claude-statusline = "claude_statusline.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["claude_statusline"]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.10.0",
+    "pytest>=9.0.2",
+]
