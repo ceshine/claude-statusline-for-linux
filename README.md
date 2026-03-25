@@ -1,0 +1,27 @@
+# Claude Statusline for Linux
+
+This repository hosts a Python package that provides a two-line status line layout for Claude Code with first-class support for Linux.
+
+The motivation for this project is to provide a Linux-first alternative to the macOS-first bash script in [tzengyuxio/claude-statusline](https://github.com/tzengyuxio/claude-statusline/).
+
+**Warning**: I do not own any macOS machines, so I have not verified compatibility on macOS.
+
+Reference: [Claude Code Docs: Customize your status line](https://code.claude.com/docs/en/statusline)
+
+## Installation
+
+Add the following lines in `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "uvx --from git+https://github.com/ceshine/claude-statusline-for-linux.git claude_statusline"
+  }
+}
+```
+
+## Acknowledgements
+
+- The statusline logic was adapted from the bash script in [tzengyuxio/claude-statusline](https://github.com/tzengyuxio/claude-statusline/), which primarily supports macOS.
+- The [AGENTS.md](./AGENTS.md) was adapted from the example in this blog post: [Getting Good Results from Claude Code](https://www.dzombak.com/blog/2025/08/getting-good-results-from-claude-code/).
