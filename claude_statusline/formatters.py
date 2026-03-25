@@ -61,7 +61,7 @@ def usage_segment_str(label: str, window: RateLimitWindow, now: int, theme: Them
     if window.used_pct is None or not window.resets_at:
         return ""
     try:
-        pct = int(window.used_pct)
+        pct = round(window.used_pct)
         reset_epoch = resets_at_to_epoch(window.resets_at)
         color = pct_color(pct, theme)
         reset_str = format_countdown(reset_epoch, now)

@@ -19,6 +19,8 @@ def main() -> None:
     try:
         raw = json.loads(sys.stdin.read())
     except Exception:
+        # Gracefully handle missing or malformed stdin (e.g. hook not yet
+        # configured, or Claude Code version that emits no JSON).
         raw = {}
 
     now = int(time.time())
