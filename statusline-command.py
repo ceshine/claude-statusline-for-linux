@@ -2,7 +2,7 @@
 """Claude Code Status Line — Two-line layout with Nerd Font icons (MD range)
 
 Line 1: Model │ Context Bar (16 segs) │ Cost │ 5h usage │ 7d usage
-Line 2: Directory │ Git Branch & Status │ Venv │ Vim
+Line 2: Directory │ Git Branch & Status │ Vim
 """
 
 import os
@@ -10,7 +10,6 @@ import sys
 import json
 import time
 import subprocess
-import threading
 from pathlib import Path
 
 # --- Read and parse input ---
@@ -26,6 +25,15 @@ cwd = data.get("workspace", {}).get("current_dir") or "."
 used_pct = float(data.get("context_window", {}).get("used_percentage") or 0)
 cost = float(data.get("cost", {}).get("total_cost_usd") or 0)
 vim_mode = data.get("vim", {}).get("mode") or ""
+
+
+rate_limits = data.get("rate_limits", {})
+_5h = rate_limits.get("five_hour", {})
+_7d = rate_limits.get("seven_day", {})
+rl_pct5h = _5h.get("used_percentage")
+rl_pct7d = _7d.get("used_percentage")
+rl_resets_at_5h = _5h.get("resets_at", "")
+rl_resets_at_7d = _7d.get("resets_at", "")
 
 dir_name = Path(cwd).name or cwd
 
@@ -81,7 +89,6 @@ ICON_GIT = "\U000f062c"  # nf-md-source_branch 󰘬
 ICON_COST = "\U000f0109"  # nf-md-cash         󰄉
 ICON_WARN = "\uf071"  # nf-fa-warning
 ICON_VIM = "\U000f0577"  # nf-md-vim          󰕷
-ICON_VENV = "\U000f0320"  # nf-md-language_python 󰌠
 
 SEP = f"{DIM} │ {RST}"
 BAR_SEGMENTS = 16
@@ -145,35 +152,6 @@ def git_info_str() -> str:
     return f"{SEP}{MAGENTA}{ICON_GIT} {branch}{RST}{status}"
 
 
-# --- Python venv detection ---
-def venv_str() -> str:
-    venv_name = py_ver = ""
-    virtual_env = os.environ.get("VIRTUAL_ENV", "")
-    if virtual_env:
-        venv_name = Path(virtual_env).name
-    else:
-        for candidate in [".venv", "venv", ".env"]:
-            python_bin = Path(cwd) / candidate / "bin" / "python"
-            if python_bin.is_file():
-                venv_name = candidate
-                try:
-                    ver_out = subprocess.run(
-                        [str(python_bin), "--version"], capture_output=True, text=True
-                    ).stdout.strip()
-                    # e.g. "Python 3.11.2" → "3.11"
-                    parts = ver_out.split()
-                    if len(parts) >= 2:
-                        py_ver = ".".join(parts[1].split(".")[:2])
-                except Exception:
-                    pass
-                break
-
-    if not venv_name:
-        return ""
-    ver_suffix = f" ({py_ver})" if py_ver else ""
-    return f"{SEP}{YELLOW}{ICON_VENV} {venv_name}{ver_suffix}{RST}"
-
-
 # --- Vim mode ---
 def vim_str() -> str:
     if not vim_mode:
@@ -182,80 +160,13 @@ def vim_str() -> str:
     return f"{SEP}{color}{BOLD}{ICON_VIM} {vim_mode}{RST}"
 
 
-# --- Usage cache (background refresh via thread) ---
-CACHE_DIR = Path.home() / ".claude" / "statusline-cache"
-USAGE_CACHE = CACHE_DIR / "usage.dat"
-LOCK_FILE = CACHE_DIR / "usage-update.lock"
-CACHE_TTL = 60
+def _resets_at_to_epoch(s: str | int) -> int:
+    from datetime import datetime, timezone
 
-
-def refresh_usage_cache():
-    try:
-        LOCK_FILE.mkdir(parents=True, exist_ok=False)
-    except FileExistsError:
-        try:
-            age = now - int(LOCK_FILE.stat().st_mtime)
-            if age <= 60:
-                return
-            import shutil
-
-            shutil.rmtree(LOCK_FILE, ignore_errors=True)
-            LOCK_FILE.mkdir(parents=True, exist_ok=False)
-        except Exception:
-            return
-
-    def _fetch():
-        try:
-            import urllib.request
-
-            token = ""
-            creds_path = Path.home() / ".claude" / ".credentials.json"
-            if creds_path.is_file():
-                creds = json.loads(creds_path.read_text())
-                token = creds.get("claudeAiOauth", {}).get("accessToken", "")
-
-            if not token:
-                return
-
-            req = urllib.request.Request(
-                "https://api.anthropic.com/api/oauth/usage",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "anthropic-beta": "oauth-2025-04-20",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                body = json.loads(resp.read())
-
-            if "five_hour" not in body:
-                return
-
-            def to_epoch(s: str) -> int:
-                from datetime import datetime, timezone
-
-                # Strip sub-second precision and trailing Z
-                s = s.split(".")[0].rstrip("Z")
-                return int(datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp())
-
-            pct5h = int(body["five_hour"]["utilization"])
-            epoch5h = to_epoch(body["five_hour"]["resets_at"])
-            pct7d = int(body["seven_day"]["utilization"])
-            epoch7d = to_epoch(body["seven_day"]["resets_at"])
-
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            tmp = USAGE_CACHE.with_suffix(".tmp")
-            tmp.write_text(f"{pct5h} {epoch5h} {pct7d} {epoch7d}\n")
-            tmp.replace(USAGE_CACHE)
-        except Exception:
-            pass
-        finally:
-            import shutil
-
-            shutil.rmtree(LOCK_FILE, ignore_errors=True)
-
-    t = threading.Thread(target=_fetch, daemon=True)
-    t.start()
-    return t
+    if isinstance(s, int):
+        return s
+    s = s.split(".")[0].rstrip("Z")
+    return int(datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp())
 
 
 def format_countdown(reset_epoch: int) -> str:
@@ -275,31 +186,17 @@ def usage_segment(label: str, pct: int, reset_epoch: int) -> str:
     return f"{SEP}{DIM}{label}{RST} {color}{pct}%{RST} {DIM}↺ {reset_str}{RST}"
 
 
-# Trigger background refresh if cache is missing or stale
-refresh_thread = None
-if not USAGE_CACHE.is_file():
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    refresh_thread = refresh_usage_cache()
-else:
-    cache_age = now - int(USAGE_CACHE.stat().st_mtime)
-    if cache_age > CACHE_TTL:
-        refresh_thread = refresh_usage_cache()
-
 usage_5h = usage_7d = ""
-if USAGE_CACHE.is_file():
-    try:
-        parts = USAGE_CACHE.read_text().split()
-        pct5h, epoch5h, pct7d, epoch7d = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-        if pct5h != -1:
-            usage_5h = usage_segment("5h", pct5h, epoch5h)
-        if pct7d != -1:
-            usage_7d = usage_segment("7d", pct7d, epoch7d)
-    except Exception:
-        pass
+try:
+    if rl_pct5h is not None and rl_resets_at_5h:
+        usage_5h = usage_segment("5h", int(rl_pct5h), _resets_at_to_epoch(rl_resets_at_5h))
+    if rl_pct7d is not None and rl_resets_at_7d:
+        usage_7d = usage_segment("7d", int(rl_pct7d), _resets_at_to_epoch(rl_resets_at_7d))
+except Exception:
+    pass
 
 # --- Assemble output ---
 git_part = git_info_str()
-venv_part = venv_str()
 vim_part = vim_str()
 
 line1_tail = f"{SEP}{DIM}{ICON_COST} {cost_str}{RST}{usage_5h}{usage_7d}"
@@ -316,11 +213,6 @@ else:
         f"{CYAN}{BOLD}{ICON_MODEL} {model}{RST}{SEP}{DIM}{ICON_CTX}{RST} {ctx_color}{bar} {pct_int}%{RST}{line1_tail}"
     )
 
-line2 = f"{BLUE}{ICON_DIR} {dir_name}{RST}{git_part}{venv_part}{vim_part}"
-
-# Wait for background thread to finish writing the cache before exit
-# (only if it was just started and the script is about to exit)
-if refresh_thread is not None:
-    refresh_thread.join(timeout=0)  # don't block — fire and forget
+line2 = f"{BLUE}{ICON_DIR} {dir_name}{RST}{git_part}{vim_part}"
 
 print(f"{line1}\n{line2}", end="")
