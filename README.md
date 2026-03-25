@@ -8,6 +8,15 @@ The motivation for this project is to provide a Linux-first alternative to the m
 
 Reference: [Claude Code Docs: Customize your status line](https://code.claude.com/docs/en/statusline)
 
+## Prerequisites
+
+- Linux (macOS compatibility is unverified).
+- Python 3.11 or newer.
+- `uv` installed so the `uvx` command is available. See the [uv documentation](https://docs.astral.sh/uv/).
+- Git installed and available on `PATH` (used to render branch and status info).
+- A Nerd Font installed for the glyph icons used in the statusline (otherwise icons may render as empty boxes).
+- Claude Code with status line support enabled.
+
 ## Installation
 
 Add the following lines in `~/.claude/settings.json`:
