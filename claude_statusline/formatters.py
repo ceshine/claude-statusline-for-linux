@@ -95,7 +95,9 @@ def git_info_str(cwd: str, theme: Theme, sep: str) -> str:
         or "detached"
     )
 
-    result = subprocess.run(["git", "-C", cwd, "status", "--porcelain"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "-C", cwd, "--no-optional-locks", "status", "--porcelain"], capture_output=True, text=True
+    )
 
     staged = unstaged = untracked = 0
     for line in result.stdout.splitlines():
