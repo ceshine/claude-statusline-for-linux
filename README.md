@@ -32,6 +32,16 @@ Add the following lines in `~/.claude/settings.json`:
 }
 ```
 
+### Update
+
+Run the following command to update the package to the latest version:
+
+```bash
+uvx --refresh --from git+https://github.com/ceshine/claude-statusline-for-linux.git claude-statusline -v
+```
+
+> **Note:** The `--refresh` flag is intentionally omitted from the statusline configuration, as it would add significant overhead on every invocation.
+
 ## Acknowledgements
 
 - The statusline logic was adapted from the bash script in [tzengyuxio/claude-statusline](https://github.com/tzengyuxio/claude-statusline/), which primarily supports macOS.
