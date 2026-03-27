@@ -4,9 +4,10 @@ Line 1: Model │ Context Bar (16 segs) │ Cost │ Tokens
 Line 2: Directory │ Git Branch & Status │ 5h usage │ 7d usage │ Vim
 """
 
-import json
 import sys
+import json
 import time
+from importlib.metadata import version
 
 from .constants import RST
 from .formatters import build_line1, build_line2
@@ -16,6 +17,10 @@ from .theme import build_theme, detect_theme
 
 def main() -> None:
     """Read stdin JSON, build status lines, and print output."""
+    if "-v" in sys.argv[1:]:
+        print(version("claude-statusline-for-linux"))
+        return
+
     try:
         raw = json.loads(sys.stdin.read())
     except Exception:
