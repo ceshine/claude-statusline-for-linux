@@ -1,4 +1,6 @@
-# Claude Statusline for Linux
+# Claude Code Status Line for Linux
+
+[![CI](https://github.com/ceshine/claude-statusline-for-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/ceshine/claude-statusline-for-linux/actions/workflows/ci.yml)
 
 This repository hosts a Python package that provides a two-line status line layout for Claude Code with first-class support for Linux.
 
