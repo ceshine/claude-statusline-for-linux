@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ceshine/claude-statusline-for-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/ceshine/claude-statusline-for-linux/actions/workflows/ci.yml)
 
-This repository hosts a Python package that provides a two-line status line layout for Claude Code with first-class support for Linux.
+This repository hosts a Python package that provides a two-line status line layout for the Claude Code CLI with first-class support for Linux.
 
 The motivation for this project is to provide a Linux-first alternative to the macOS-first bash script in [tzengyuxio/claude-statusline](https://github.com/tzengyuxio/claude-statusline/).
 
@@ -27,7 +27,7 @@ Add the following lines in `~/.claude/settings.json`:
 {
   "statusLine": {
     "type": "command",
-    "command": "uvx --from git+https://github.com/ceshine/claude-statusline-for-linux.git claude_statusline"
+    "command": "uvx --from git+https://github.com/ceshine/claude-statusline-for-linux.git claude-statusline"
   }
 }
 ```
