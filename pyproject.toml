@@ -21,3 +21,6 @@ dev = [
     "ipython>=9.10.0",
     "pytest>=9.0.2",
 ]
+
+[tool.uv]
+exclude-newer = "1 week"
