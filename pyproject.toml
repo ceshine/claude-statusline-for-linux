@@ -25,3 +25,9 @@ dev = [
 
 [tool.uv]
 exclude-newer = "1 week"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+ignore = ["I001"]

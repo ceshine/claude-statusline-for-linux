@@ -46,17 +46,14 @@ When multiple valid approaches exist, choose based on:
 
 - **Comprehensive Typing:** Use type hints for all function signatures and class members. Use modern Python 3.10+ typing syntax (e.g., `list[str]` instead of `List[str]`, `str | None` instead of `Optional[str]`).
 - **Data Validation:** For complex data structures or API models, prefer Pydantic for validation and serialization.
-- **Strictness:** Aim for code that passes `pyright` with minimal ignores.
-
-### Data Handling (Polars)
-
-- **Schema Enforcement:** Always specify schemas when creating DataFrames from lists of dicts or loading from raw files to ensure type consistency.
-- **IPC/Arrow:** Prefer `write_ipc` and `read_ipc` (Arrow format) for persisting intermediate DataFrames to disk for performance and type preservation.
-- **Lazy Evaluation:** Use `lazy()` and `collect()` for complex transformations to allow Polars to optimize the execution plan.
+- **Strictness:** Aim for code that passes `basedpyright` with minimal ignores.
+- **Unused call results:** basedpyright's `reportUnusedCallResult` applies everywhere, tests included. When a call
+  that returns a value is made only for its side effect, assign the result to `_` (e.g. `_ = path.rename(dest)`,
+  `_ = create_user(db, name="alice")`) rather than disabling the rule.
 
 ### Logging Standards
 
-- **Standard Logger:** Initialize loggers using `LOGGER = logging.getLogger(__name__)` at the module level.
+- **Standard Logger:** Initialize loggers as `LOGGER = logging.getLogger(__name__)` at module level (see module-level naming under Code Style Guidelines).
 - **Contextual Info:** Use the logger to provide context during long-running operations or errors, but avoid excessive debug logging in production paths.
 
 ### CLI & User Interface
@@ -67,7 +64,7 @@ When multiple valid approaches exist, choose based on:
 
 ### Testing Strategy
 
-- **Pytest:** Use `pytest` for all testing. Organize tests in a `tests/` directory mirroring the `search_engine/` structure.
+- **Pytest:** Use `pytest` for all testing. Organize tests in a `tests/` directory mirroring the structure of the Python package(s).
 - **Fixtures:** Use pytest fixtures for setup/teardown of data, models, or temporary directories.
 - **Mocking:** Mock external services, databases (like Qdrant), or heavy models (Torch) when writing unit tests to keep them fast and reliable.
 
@@ -75,56 +72,41 @@ When multiple valid approaches exist, choose based on:
 
 When writing or modifying Python code, you **MUST** adhere to the PEP-8 style guide. Pay particular attention to:
 
+- Naming conventions and whitespace (see the module-level override below).
+- **Module-level names (project convention, overrides PEP-8 defaults):**
+  - Use `UPPER_SNAKE_CASE` for every module-level singleton instance, not only constants:
+    e.g. `LOGGER = logging.getLogger(__name__)`, `APP = typer.Typer(...)`, `CONSOLE = Console()`.
+    This is deliberate; do not rename them to lowercase.
+  - Reference them by that name everywhere, including decorators (`@APP.command()`) and tests
+    (`CliRunner().invoke(APP, ...)`).
+  - Type aliases stay `CapWords` (e.g. `ConfigOption = Annotated[...]`, `PageLoader = Callable[...]`).
 - **Pathlib:** Always use `pathlib.Path` for file and directory operations instead of `os.path` or string manipulations.
 - **Import Grouping:** Imports should be grouped in the following order, with a blank line separating each group:
     1.  Standard library imports (e.g., `os`, `sys`, `json`)
     2.  Third-party imports (e.g., `fastapi`, `pydantic`, `uvicorn`)
     3.  Local application/monorepo-specific imports
-- **Import Sorting:** Within each group, the imports should be ordered using the following rules:
-    - `import ...` statements come first, then `from ... import ...` statements.
-    - Sort module paths level-by-level: compare the first segment, then the second only if the first segments are equal, and so on.
-    - **Segment comparison:** a shorter segment ranks before a longer one; if two segments have the same length but different text, use alphabetical order as the tiebreaker.
-    - **Parent before child:** when one path is the parent of another (e.g. `a.b` vs `a.b.c`), the parent always comes first.
-    - Example: `import abc.abc.def` comes before `import abc.abcd.d` because `abc` == `abc` at level 1, then `abc` (length 3) < `abcd` (length 4) at level 2.
-    - Exception: Always put `from typing import ...` at the bottom of the standard library group.
-- Naming conventions, and whitespace.
+
+    Within each group, the order is set by `lort`, which the pre-commit hook runs (`uvx prek run --files <files>`
+    applies it before committing). Don't sort imports by hand or with ruff: ruff's I001 rule orders imports
+    differently from lort, so if `pyproject.toml` doesn't already disable I001 (e.g. via `ignore = ["I001"]`
+    under `[tool.ruff.lint]`), disable it.
 - **Docstrings:** Follow Google's Python style guide for docstrings strictly. Even when the function signature contains type annotations, include the parameter and return type information in the docstring.
-
-Example imports:
-```python
-import os
-import abc
-import csv
-import datetime
-from xml.sax.handler import ContentHandler
-from xml.parsers.expat import ExpatError
-from a.b import c
-from a.b.c import d
-from a.b.add import f
-from a.bc.a import k
-from collections import defaultdict
-from collections.abc import Mapping
-from typing import Any, Dict, List, Optional
-
-import typer
-
-from . import runner
-```
 
 ## Python Environment (UV)
 
 This project uses `uv` for Python setup and dependency management.
 
 - **Sync Environment:** `uv sync --frozen` (creates/updates virtualenv from lockfile).
-- **Run Scripts/Tools:** Always prefix with `uv run` (e.g., `uv run python main.py`, `uv run pytest`).
+- **Run Scripts/Tools:** Always prefix runtime commands with `uv run` (e.g., `uv run python main.py`, `uv run pytest`).
 - **Add Dependencies:** Use `uv add <package>` or `uv add --dev <package>`.
-- **Linting & Formatting:**
-  - `uvx ruff check .` (Linting)
-  - `uvx ruff format --line-length 120` (Formatting)
+- **Linting & Formatting:** Use the `ruff` version pinned in `uv.lock` (from the `dev` dependency group), the same one CI runs:
+  - `uv run --frozen ruff check .` (Linting)
+  - `uv run --frozen ruff format .` (Formatting; line length comes from `[tool.ruff]` in `pyproject.toml`. If `line-length` is not set there, add `line-length = 120` under `[tool.ruff]` rather than relying on ruff's default of 88)
+  - Fallback: only if the locked `ruff` is not available locally (e.g., the `dev` group cannot be synced), use `uvx ruff check .` and `uvx ruff format .`. Note that `uvx` runs the latest `ruff` release, whose default rules may differ from the locked version CI uses.
 
 Pre-Submission Check:
 
-- Before submitting for review, always run `uvx ruff check .` and `uvx ruff format --line-length 120`.
+- Before submitting for review, always run the lint and format commands above (locked `ruff` first, `uvx ruff` as the fallback).
 - Ensure all tests pass with `uv run pytest`.
 
 Guidelines for commands and CI:
