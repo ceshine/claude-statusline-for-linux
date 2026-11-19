@@ -17,10 +17,10 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Ruff lint
-        run: uvx ruff check .
+        run: uv run --frozen --only-group dev ruff check .
 
       - name: Ruff format check
-        run: uvx ruff format --check --line-length 120 .
+        run: uv run --frozen --only-group dev ruff format --check --line-length 120 .
 
   test:
     name: Tests (Python ${{ matrix.python-version }})
