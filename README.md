@@ -14,33 +14,43 @@ Reference: [Claude Code Docs: Customize your status line](https://code.claude.co
 
 - Linux (macOS compatibility is unverified).
 - Python 3.11 or newer.
-- `uv` installed so the `uvx` command is available. See the [uv documentation](https://docs.astral.sh/uv/).
+- `uv` installed. See the [uv documentation](https://docs.astral.sh/uv/).
 - Git installed and available on `PATH` (used to render branch and status info).
 - A Nerd Font installed for the glyph icons used in the statusline (otherwise icons may render as empty boxes).
 - Claude Code with status line support enabled.
 
 ## Installation
 
-Add the following lines in `~/.claude/settings.json`:
+1. Install the tool with `uv`:
+
+```bash
+uv tool install git+https://github.com/ceshine/claude-statusline-for-linux.git
+```
+
+Make sure `uv`'s tool bin directory (typically `~/.local/bin`) is on your `PATH` (you can run `uv tool update-shell` if needed), or use the full path `~/.local/bin/claude-statusline` below.
+
+2. Add the following lines in `~/.claude/settings.json`:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "uvx --from git+https://github.com/ceshine/claude-statusline-for-linux.git claude-statusline"
+    "command": "claude-statusline"
   }
 }
 ```
 
+> **Why `uv tool install` instead of `uvx`?** Running `uvx --from git+...` with an unpinned Git URL checks GitHub for updates on invocation, which adds network latency and can sporadically trigger statusline timeouts. Installing the tool locally avoids network checks and keeps startup fast.
+
 ### Update
 
-Run the following command to update the package to the latest version:
+Run the following command to update the installed tool to the latest commit on GitHub:
 
 ```bash
-uvx --refresh --from git+https://github.com/ceshine/claude-statusline-for-linux.git claude-statusline -v
+uv tool upgrade --reinstall claude-statusline-for-linux
 ```
 
-> **Note:** The `--refresh` flag is intentionally omitted from the statusline configuration, as it would add significant overhead on every invocation.
+> **Note:** `--reinstall` implies `--refresh`, ensuring `uv` fetches and rebuilds from the latest commit even if the package version number has not changed.
 
 ## Acknowledgements
 
